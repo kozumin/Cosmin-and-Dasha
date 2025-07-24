@@ -1,146 +1,223 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Cosmin vs Dasha</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      background: black;
       overflow: hidden;
-      touch-action: manipulation;
-      -webkit-user-select: none;
-      user-select: none;
+      background: black;
+      font-family: monospace;
     }
+
     #hud {
       position: fixed;
-      top: 10px;
-      left: 50%;
-      transform: translateX(-50%);
+      top: 0;
+      left: 0;
+      width: 100%;
       background: #111;
+      color: white;
+      padding: 10px;
+      font-size: 20px;
+      border-bottom: 2px solid lime;
+      z-index: 2;
+      text-align: center;
+    }
+
+    #gameCanvas {
+      display: block;
+      background: black;
+    }
+
+    #loading {
+      position: fixed;
+      width: 100%;
+      height: 100%;
+      background: #000;
       color: lime;
-      font-family: monospace;
-      font-size: 24px;
-      padding: 10px 20px;
-      border: 2px solid lime;
-      border-radius: 10px;
-      z-index: 999;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 3;
+    }
+
+    #progressBar {
+      width: 80%;
+      height: 20px;
+      background: #222;
+      border: 1px solid lime;
+      margin-top: 10px;
+    }
+
+    #progressFill {
+      height: 100%;
+      background: lime;
+      width: 0%;
     }
   </style>
 </head>
 <body>
-  <div id="hud">Cosmin Score on Dasha: 0</div>
-  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.x/dist/pixi.min.js"></script>
-  <script>
-    const app = new PIXI.Application({
-      width: window.innerWidth,
-      height: window.innerHeight,
-      backgroundColor: 0x000000,
-      resolution: window.devicePixelRatio || 1,
-      autoDensity: true,
-      antialias: true
-    });
-    document.body.appendChild(app.view);
 
-    window.addEventListener('resize', () => {
-      app.renderer.resize(window.innerWidth, window.innerHeight);
-    });
+<div id="hud">Cosmin Score on Dasha: 0</div>
+<canvas id="gameCanvas" width="900" height="400"></canvas>
 
-    const hud = document.getElementById('hud');
-    let score = 0;
+<div id="loading">
+  <div>Loading...</div>
+  <div id="progressBar"><div id="progressFill"></div></div>
+</div>
 
-    const gridSize = 40;
-    const cols = Math.floor(app.renderer.width / gridSize);
-    const rows = Math.floor(app.renderer.height / gridSize);
+<script>
+  const canvas = document.getElementById('gameCanvas');
+  const ctx = canvas.getContext('2d');
+  const hud = document.getElementById('hud');
+  const loadingScreen = document.getElementById('loading');
+  const progressFill = document.getElementById('progressFill');
 
-    const cosmin = new PIXI.Text('==3', { fontFamily: 'monospace', fontSize: 28, fill: 0x00ff00 });
-    cosmin.x = gridSize * 2;
-    cosmin.y = gridSize * Math.floor(rows / 2);
-    app.stage.addChild(cosmin);
+  let gameStarted = false;
+  let score = 0;
 
-    const dashas = [];
-    const hearts = [];
+  let cosmin = {
+    x: 50,
+    y: canvas.height / 2,
+    width: 60,
+    height: 20,
+    dragging: false
+  };
 
-    function spawnDasha() {
-      const d = new PIXI.Text("(')", { fontFamily: 'monospace', fontSize: 28, fill: 0xff69b4 });
-      d.x = app.renderer.width - gridSize;
-      d.y = gridSize * Math.floor(Math.random() * (rows - 1));
-      d.hit = false;
-      app.stage.addChild(d);
-      dashas.push(d);
+  let dashas = [];
+  let particles = [];
+
+  function drawCosmin() {
+    ctx.fillStyle = 'lime';
+    ctx.fillRect(cosmin.x, cosmin.y - cosmin.height / 2, cosmin.width, cosmin.height);
+  }
+
+  function drawDasha(d) {
+    ctx.fillStyle = d.hit ? 'hotpink' : 'deeppink';
+    ctx.fillRect(d.x, d.y - 10, 30, 20);
+  }
+
+  function drawParticles() {
+    for (let p of particles) {
+      ctx.fillStyle = 'red';
+      ctx.fillText('♥', p.x, p.y);
     }
+  }
 
-    function spawnHeart(x, y) {
-      const heart = new PIXI.Text('(♥)', { fontFamily: 'monospace', fontSize: 28, fill: 0xff0000 });
-      heart.x = x;
-      heart.y = y;
-      heart.vx = (Math.random() - 0.5) * 5;
-      heart.vy = (Math.random() - 0.5) * 5;
-      heart.life = 30;
-      app.stage.addChild(heart);
-      hearts.push(heart);
+  function updateParticles() {
+    for (let p of particles) {
+      p.x += (Math.random() - 0.5) * 4;
+      p.y -= Math.random() * 2;
+      p.life -= 1;
     }
+    particles = particles.filter(p => p.life > 0);
+  }
 
-    function update() {
-      for (let dasha of dashas) {
-        if (!dasha.hit) {
-          dasha.x -= 2;
-          if (
-            Math.abs(dasha.y - cosmin.y) < gridSize &&
-            dasha.x < cosmin.x + cosmin.width &&
-            dasha.x + dasha.width > cosmin.x
-          ) {
-            dasha.hit = true;
-            score++;
-            hud.textContent = `Cosmin Score on Dasha: ${score}`;
-            for (let i = 0; i < 6; i++) {
-              spawnHeart(dasha.x, dasha.y);
-            }
-            cosmin.x += 10; // bump
-            setTimeout(() => cosmin.x -= 10, 200);
+  function spawnDasha() {
+    dashas.push({
+      x: canvas.width + 30,
+      y: Math.random() * (canvas.height - 40) + 20,
+      hit: false
+    });
+  }
+
+  function updateGame() {
+    for (let d of dashas) {
+      if (!d.hit) {
+        d.x -= 6;
+        if (d.x < cosmin.x + cosmin.width &&
+            d.x + 30 > cosmin.x &&
+            d.y > cosmin.y - cosmin.height / 2 &&
+            d.y < cosmin.y + cosmin.height / 2) {
+          d.hit = true;
+          score++;
+          hud.textContent = `Cosmin Score on Dasha: ${score}`;
+          for (let i = 0; i < 10; i++) {
+            particles.push({
+              x: d.x,
+              y: d.y,
+              life: 30
+            });
           }
         }
-      }
-
-      for (let heart of hearts) {
-        heart.x += heart.vx;
-        heart.y += heart.vy;
-        heart.life--;
-        if (heart.life <= 0) {
-          app.stage.removeChild(heart);
+      } else {
+        d.x -= (d.x - 10) * 0.05;
+        d.y -= (d.y - 10) * 0.05;
+        if (Math.abs(d.x - 10) < 2 && Math.abs(d.y - 10) < 2) {
+          dashas.splice(dashas.indexOf(d), 1);
         }
       }
-
-      dashas.forEach(d => {
-        if (d.x < -100) app.stage.removeChild(d);
-      });
-
-      dashas.splice(0, dashas.length, ...dashas.filter(d => d.x >= -100 && !d.removed));
-      hearts.splice(0, hearts.length, ...hearts.filter(h => h.life > 0));
-
-      if (Math.random() < 0.03) spawnDasha();
     }
+    dashas = dashas.filter(d => d.x > -40 || d.hit);
+  }
 
-    function moveCosmin(direction) {
-      if (direction === 'up' && cosmin.y > 0) cosmin.y -= gridSize;
-      if (direction === 'down' && cosmin.y < app.renderer.height - gridSize) cosmin.y += gridSize;
-    }
+  function draw() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    drawCosmin();
+    for (let d of dashas) drawDasha(d);
+    drawParticles();
+  }
 
-    window.addEventListener('keydown', e => {
-      if (e.key === 'ArrowUp') moveCosmin('up');
-      if (e.key === 'ArrowDown') moveCosmin('down');
+  function gameLoop() {
+    if (!gameStarted) return;
+    updateGame();
+    updateParticles();
+    draw();
+    requestAnimationFrame(gameLoop);
+  }
+
+  function setupControls() {
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      cosmin.dragging = true;
     });
 
-    app.view.addEventListener('click', e => {
-      const rect = app.view.getBoundingClientRect();
-      const clickY = e.clientY - rect.top;
-      const centerY = cosmin.y + cosmin.height / 2;
-      if (clickY < centerY) moveCosmin('up');
-      else moveCosmin('down');
+    canvas.addEventListener('touchmove', e => {
+      if (cosmin.dragging) {
+        let touch = e.touches[0];
+        const rect = canvas.getBoundingClientRect();
+        let y = touch.clientY - rect.top;
+        cosmin.y = Math.max(cosmin.height / 2, Math.min(canvas.height - cosmin.height / 2, y));
+      }
     });
 
-    app.ticker.add(update);
-  </script>
+    canvas.addEventListener('touchend', () => cosmin.dragging = false);
+  }
+
+  function fakeLoading() {
+    let progress = 0;
+    const interval = setInterval(() => {
+      progress += 1;
+      progressFill.style.width = `${progress}%`;
+      if (progress >= 100) {
+        clearInterval(interval);
+        startGame();
+      }
+    }, 20);
+  }
+
+  function startGame() {
+    loadingScreen.style.display = 'none';
+    setTimeout(() => {
+      hud.textContent = "Ready...";
+      setTimeout(() => {
+        hud.textContent = "Steady...";
+        setTimeout(() => {
+          hud.textContent = "Cosmin Score on Dasha: 0";
+          gameStarted = true;
+          setInterval(spawnDasha, 800);
+          requestAnimationFrame(gameLoop);
+        }, 1000);
+      }, 1000);
+    }, 500);
+  }
+
+  setupControls();
+  fakeLoading();
+</script>
+
 </body>
 </html>
