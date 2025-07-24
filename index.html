@@ -1,169 +1,140 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Cosmin vs Dasha</title>
+  <meta charset="UTF-8" />
+  <title>Cosmin vs Dasha - PIXI Edition</title>
   <style>
-    body {
-      background: black;
-      font-family: monospace;
-      font-size: 20px;
-      overflow: hidden;
+    html, body {
       margin: 0;
+      padding: 0;
+      overflow: hidden;
+      background: black;
+      touch-action: manipulation;
     }
     #hud {
       position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background: #111;
-      color: white;
-      padding: 5px 10px;
-      font-size: 18px;
-      border-bottom: 2px solid lime;
-      z-index: 2;
-    }
-    #game {
-      white-space: pre;
-      line-height: 1.2;
-      padding-top: 30px;
-      color: lime;
-    }
-    .red {
-      color: red;
-    }
-    .pink {
-      color: hotpink;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      color: #fff;
+      font-family: 'Courier New', monospace;
+      font-size: 24px;
+      padding: 10px 20px;
+      border: 2px solid #ff00cc;
+      border-radius: 12px;
+      background: rgba(0, 0, 0, 0.7);
+      z-index: 999;
+      text-align: center;
+      box-shadow: 0 0 10px #ff00cc;
     }
   </style>
 </head>
 <body>
   <div id="hud">Cosmin Score on Dasha: 0</div>
-  <div id="game"></div>
-
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.0.2/pixi.min.js"></script>
   <script>
-    const width = 60;
-    const height = 15;
-    const cosminChar = '==3';
-    const dashaChar = "(')";
-    const dashaHitChar = '(♥)';
-    const gameDiv = document.getElementById('game');
-    const hud = document.getElementById('hud');
+    const app = new PIXI.Application({ width: window.innerWidth, height: window.innerHeight, backgroundColor: 0x000000 });
+    document.body.appendChild(app.view);
+
+    const cosmin = new PIXI.Text("==3", { fontFamily: "monospace", fontSize: 36, fill: "lime" });
+    cosmin.x = 100;
+    cosmin.y = app.screen.height / 2;
+    app.stage.addChild(cosmin);
+
+    const dashas = [];
+    const hearts = [];
+    const particles = [];
 
     let score = 0;
-
-    let cosmin = { x: 2, y: 7 };
-    let dashas = [];
-    let floatingHearts = [];
+    const hud = document.getElementById("hud");
 
     function spawnDasha() {
-      dashas.push({
-        x: width - 1,
-        y: Math.floor(Math.random() * (height - 1)) + 1,
-        hit: false,
-        removed: false
-      });
+      const dasha = new PIXI.Text("(')", { fontFamily: "monospace", fontSize: 36, fill: "hotpink" });
+      dasha.x = app.screen.width + 100;
+      dasha.y = Math.random() * (app.screen.height - 40);
+      dasha.vx = -3;
+      dasha.hit = false;
+      app.stage.addChild(dasha);
+      dashas.push(dasha);
     }
 
-    function render() {
-      let screen = Array.from({ length: height }, () => Array(width).fill(' '));
-      let styles = Array.from({ length: height }, () => Array(width).fill('lime'));
+    function spawnHeart(x, y) {
+      const heart = new PIXI.Text("(♥)", { fontFamily: "monospace", fontSize: 36, fill: "red" });
+      heart.x = x;
+      heart.y = y;
+      heart.vy = -2;
+      hearts.push(heart);
+      app.stage.addChild(heart);
+    }
 
-      // Draw Cosmin
-      for (let i = 0; i < cosminChar.length; i++) {
-        if (cosmin.x + i < width) screen[cosmin.y][cosmin.x + i] = cosminChar[i];
+    function spawnParticles(x, y) {
+      for (let i = 0; i < 6; i++) {
+        const p = new PIXI.Text("♥", { fontFamily: "monospace", fontSize: 20, fill: "red" });
+        p.x = x;
+        p.y = y;
+        p.vx = (Math.random() - 0.5) * 6;
+        p.vy = (Math.random() - 1.5) * 6;
+        p.life = 30;
+        app.stage.addChild(p);
+        particles.push(p);
       }
+    }
 
-      // Draw active Dashas
+    app.ticker.add(() => {
+      // Move Dashas
       for (let dasha of dashas) {
-        if (dasha.removed) continue;
-        for (let i = 0; i < dashaChar.length; i++) {
-          let drawX = dasha.x + i;
-          if (drawX >= 0 && drawX < width && dasha.y >= 0 && dasha.y < height) {
-            screen[dasha.y][drawX] = dashaChar[i];
-            styles[dasha.y][drawX] = 'hotpink';
+        if (!dasha.hit) {
+          dasha.x += dasha.vx;
+
+          if (
+            dasha.x < cosmin.x + cosmin.width &&
+            dasha.x + dasha.width > cosmin.x &&
+            Math.abs(dasha.y - cosmin.y) < 30
+          ) {
+            dasha.hit = true;
+            dasha.visible = false;
+            spawnHeart(dasha.x, dasha.y);
+            spawnParticles(dasha.x, dasha.y);
+            score++;
+            hud.textContent = "Cosmin Score on Dasha: " + score;
           }
         }
       }
 
-      // Draw floating red hearts
-      for (let heart of floatingHearts) {
-        for (let i = 0; i < dashaHitChar.length; i++) {
-          let drawX = heart.x + i;
-          if (drawX >= 0 && drawX < width && heart.y >= 0 && heart.y < height) {
-            screen[heart.y][drawX] = dashaHitChar[i];
-            styles[heart.y][drawX] = 'red';
-          }
+      // Animate hearts
+      for (let heart of hearts) {
+        heart.y += heart.vy;
+        heart.alpha -= 0.02;
+        if (heart.alpha <= 0) {
+          app.stage.removeChild(heart);
         }
       }
+      hearts = hearts.filter(h => h.alpha > 0);
 
-      // Render with color
-      let output = '';
-      for (let y = 0; y < height; y++) {
-        for (let x = 0; x < width; x++) {
-          const char = screen[y][x];
-          const color = styles[y][x];
-          if (color === 'red') output += `<span class="red">${char}</span>`;
-          else if (color === 'hotpink') output += `<span class="pink">${char}</span>`;
-          else output += char;
-        }
-        output += '\n';
-      }
-
-      gameDiv.innerHTML = output;
-    }
-
-    function update() {
-      for (let dasha of dashas) {
-        if (!dasha.hit) dasha.x -= 1;
-
-        if (!dasha.hit &&
-            dasha.y === cosmin.y &&
-            dasha.x <= cosmin.x + cosminChar.length - 1 &&
-            dasha.x + dashaChar.length - 1 >= cosmin.x) {
-          dasha.hit = true;
-          dasha.removed = true; // Remove visual from field
-          floatingHearts.push({ x: dasha.x, y: dasha.y, lifetime: 10 });
-          score++;
-          hud.textContent = `Cosmin Score on Dasha: ${score}`;
+      // Animate particles
+      for (let p of particles) {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.2;
+        p.life--;
+        if (p.life <= 0) {
+          app.stage.removeChild(p);
         }
       }
-
-      for (let heart of floatingHearts) {
-        heart.y -= 1;
-        heart.lifetime -= 1;
-      }
-
-      floatingHearts = floatingHearts.filter(h => h.y >= 0 && h.lifetime > 0);
-      dashas = dashas.filter(d => d.x + dashaChar.length > 0 || !d.removed);
-
-      if (Math.random() < 0.15) spawnDasha();
-    }
-
-    function gameLoop() {
-      update();
-      render();
-    }
-
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'ArrowUp' && cosmin.y > 0) cosmin.y--;
-      if (e.key === 'ArrowDown' && cosmin.y < height - 1) cosmin.y++;
+      particles = particles.filter(p => p.life > 0);
     });
 
-    document.addEventListener('click', handleClickOrTap);
-    document.addEventListener('touchstart', handleClickOrTap);
-
-    function handleClickOrTap(e) {
-      const rect = gameDiv.getBoundingClientRect();
-      const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-      const lineHeightPx = 20 * 1.2;
-      const clickedRow = Math.floor(y / lineHeightPx);
-
-      if (clickedRow < cosmin.y && cosmin.y > 0) cosmin.y--;
-      else if (clickedRow > cosmin.y && cosmin.y < height - 1) cosmin.y++;
+    // Input control
+    function moveCosmin(y) {
+      cosmin.y = y - 20;
     }
 
-    setInterval(gameLoop, 120);
+    app.view.addEventListener("pointerdown", (e) => {
+      moveCosmin(e.clientY);
+    });
+
+    setInterval(spawnDasha, 800);
   </script>
 </body>
 </html>
