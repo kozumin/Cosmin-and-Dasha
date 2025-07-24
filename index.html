@@ -1,140 +1,146 @@
-
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>Cosmin vs Dasha - PIXI Edition</title>
+  <meta charset="UTF-8">
+  <title>Cosmin vs Dasha</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      overflow: hidden;
       background: black;
+      overflow: hidden;
       touch-action: manipulation;
+      -webkit-user-select: none;
+      user-select: none;
     }
     #hud {
       position: fixed;
       top: 10px;
       left: 50%;
       transform: translateX(-50%);
-      color: #fff;
-      font-family: 'Courier New', monospace;
+      background: #111;
+      color: lime;
+      font-family: monospace;
       font-size: 24px;
       padding: 10px 20px;
-      border: 2px solid #ff00cc;
-      border-radius: 12px;
-      background: rgba(0, 0, 0, 0.7);
+      border: 2px solid lime;
+      border-radius: 10px;
       z-index: 999;
-      text-align: center;
-      box-shadow: 0 0 10px #ff00cc;
     }
   </style>
 </head>
 <body>
   <div id="hud">Cosmin Score on Dasha: 0</div>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/8.0.2/pixi.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pixi.js@7.x/dist/pixi.min.js"></script>
   <script>
-    const app = new PIXI.Application({ width: window.innerWidth, height: window.innerHeight, backgroundColor: 0x000000 });
+    const app = new PIXI.Application({
+      width: window.innerWidth,
+      height: window.innerHeight,
+      backgroundColor: 0x000000,
+      resolution: window.devicePixelRatio || 1,
+      autoDensity: true,
+      antialias: true
+    });
     document.body.appendChild(app.view);
 
-    const cosmin = new PIXI.Text("==3", { fontFamily: "monospace", fontSize: 36, fill: "lime" });
-    cosmin.x = 100;
-    cosmin.y = app.screen.height / 2;
+    window.addEventListener('resize', () => {
+      app.renderer.resize(window.innerWidth, window.innerHeight);
+    });
+
+    const hud = document.getElementById('hud');
+    let score = 0;
+
+    const gridSize = 40;
+    const cols = Math.floor(app.renderer.width / gridSize);
+    const rows = Math.floor(app.renderer.height / gridSize);
+
+    const cosmin = new PIXI.Text('==3', { fontFamily: 'monospace', fontSize: 28, fill: 0x00ff00 });
+    cosmin.x = gridSize * 2;
+    cosmin.y = gridSize * Math.floor(rows / 2);
     app.stage.addChild(cosmin);
 
     const dashas = [];
     const hearts = [];
-    const particles = [];
-
-    let score = 0;
-    const hud = document.getElementById("hud");
 
     function spawnDasha() {
-      const dasha = new PIXI.Text("(')", { fontFamily: "monospace", fontSize: 36, fill: "hotpink" });
-      dasha.x = app.screen.width + 100;
-      dasha.y = Math.random() * (app.screen.height - 40);
-      dasha.vx = -3;
-      dasha.hit = false;
-      app.stage.addChild(dasha);
-      dashas.push(dasha);
+      const d = new PIXI.Text("(')", { fontFamily: 'monospace', fontSize: 28, fill: 0xff69b4 });
+      d.x = app.renderer.width - gridSize;
+      d.y = gridSize * Math.floor(Math.random() * (rows - 1));
+      d.hit = false;
+      app.stage.addChild(d);
+      dashas.push(d);
     }
 
     function spawnHeart(x, y) {
-      const heart = new PIXI.Text("(♥)", { fontFamily: "monospace", fontSize: 36, fill: "red" });
+      const heart = new PIXI.Text('(♥)', { fontFamily: 'monospace', fontSize: 28, fill: 0xff0000 });
       heart.x = x;
       heart.y = y;
-      heart.vy = -2;
-      hearts.push(heart);
+      heart.vx = (Math.random() - 0.5) * 5;
+      heart.vy = (Math.random() - 0.5) * 5;
+      heart.life = 30;
       app.stage.addChild(heart);
+      hearts.push(heart);
     }
 
-    function spawnParticles(x, y) {
-      for (let i = 0; i < 6; i++) {
-        const p = new PIXI.Text("♥", { fontFamily: "monospace", fontSize: 20, fill: "red" });
-        p.x = x;
-        p.y = y;
-        p.vx = (Math.random() - 0.5) * 6;
-        p.vy = (Math.random() - 1.5) * 6;
-        p.life = 30;
-        app.stage.addChild(p);
-        particles.push(p);
-      }
-    }
-
-    app.ticker.add(() => {
-      // Move Dashas
+    function update() {
       for (let dasha of dashas) {
         if (!dasha.hit) {
-          dasha.x += dasha.vx;
-
+          dasha.x -= 2;
           if (
+            Math.abs(dasha.y - cosmin.y) < gridSize &&
             dasha.x < cosmin.x + cosmin.width &&
-            dasha.x + dasha.width > cosmin.x &&
-            Math.abs(dasha.y - cosmin.y) < 30
+            dasha.x + dasha.width > cosmin.x
           ) {
             dasha.hit = true;
-            dasha.visible = false;
-            spawnHeart(dasha.x, dasha.y);
-            spawnParticles(dasha.x, dasha.y);
             score++;
-            hud.textContent = "Cosmin Score on Dasha: " + score;
+            hud.textContent = `Cosmin Score on Dasha: ${score}`;
+            for (let i = 0; i < 6; i++) {
+              spawnHeart(dasha.x, dasha.y);
+            }
+            cosmin.x += 10; // bump
+            setTimeout(() => cosmin.x -= 10, 200);
           }
         }
       }
 
-      // Animate hearts
       for (let heart of hearts) {
+        heart.x += heart.vx;
         heart.y += heart.vy;
-        heart.alpha -= 0.02;
-        if (heart.alpha <= 0) {
+        heart.life--;
+        if (heart.life <= 0) {
           app.stage.removeChild(heart);
         }
       }
-      hearts = hearts.filter(h => h.alpha > 0);
 
-      // Animate particles
-      for (let p of particles) {
-        p.x += p.vx;
-        p.y += p.vy;
-        p.vy += 0.2;
-        p.life--;
-        if (p.life <= 0) {
-          app.stage.removeChild(p);
-        }
-      }
-      particles = particles.filter(p => p.life > 0);
-    });
+      dashas.forEach(d => {
+        if (d.x < -100) app.stage.removeChild(d);
+      });
 
-    // Input control
-    function moveCosmin(y) {
-      cosmin.y = y - 20;
+      dashas.splice(0, dashas.length, ...dashas.filter(d => d.x >= -100 && !d.removed));
+      hearts.splice(0, hearts.length, ...hearts.filter(h => h.life > 0));
+
+      if (Math.random() < 0.03) spawnDasha();
     }
 
-    app.view.addEventListener("pointerdown", (e) => {
-      moveCosmin(e.clientY);
+    function moveCosmin(direction) {
+      if (direction === 'up' && cosmin.y > 0) cosmin.y -= gridSize;
+      if (direction === 'down' && cosmin.y < app.renderer.height - gridSize) cosmin.y += gridSize;
+    }
+
+    window.addEventListener('keydown', e => {
+      if (e.key === 'ArrowUp') moveCosmin('up');
+      if (e.key === 'ArrowDown') moveCosmin('down');
     });
 
-    setInterval(spawnDasha, 800);
+    app.view.addEventListener('click', e => {
+      const rect = app.view.getBoundingClientRect();
+      const clickY = e.clientY - rect.top;
+      const centerY = cosmin.y + cosmin.height / 2;
+      if (clickY < centerY) moveCosmin('up');
+      else moveCosmin('down');
+    });
+
+    app.ticker.add(update);
   </script>
 </body>
 </html>
