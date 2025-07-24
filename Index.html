@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Cosmin vs Dasha</title>
+  <style>
+    body {
+      background: black;
+      font-family: monospace;
+      font-size: 20px;
+      overflow: hidden;
+      margin: 0;
+    }
+    #hud {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: #111;
+      color: white;
+      padding: 5px 10px;
+      font-size: 18px;
+      border-bottom: 2px solid lime;
+      z-index: 2;
+    }
+    #game {
+      white-space: pre;
+      line-height: 1.2;
+      padding-top: 30px;
+      color: lime;
+    }
+    .red {
+      color: red;
+    }
+    .pink {
+      color: hotpink;
+    }
+  </style>
+</head>
+<body>
+  <div id="hud">Cosmin Score on Dasha: 0</div>
+  <div id="game"></div>
+
+  <script>
+    const width = 60;
+    const height = 15;
+    const cosminChar = '==3';
+    const dashaChar = "(')";
+    const dashaHitChar = '(♥)';
+    const gameDiv = document.getElementById('game');
+    const hud = document.getElementById('hud');
+
+    let score = 0;
+
+    let cosmin = { x: 2, y: 7 };
+    let dashas = [];
+    let floatingHearts = [];
+
+    function spawnDasha() {
+      dashas.push({
+        x: width - 1,
+        y: Math.floor(Math.random() * (height - 1)) + 1,
+        hit: false,
+        removed: false
+      });
+    }
+
+    function render() {
+      let screen = Array.from({ length: height }, () => Array(width).fill(' '));
+      let styles = Array.from({ length: height }, () => Array(width).fill('lime'));
+
+      // Draw Cosmin
+      for (let i = 0; i < cosminChar.length; i++) {
+        if (cosmin.x + i < width) screen[cosmin.y][cosmin.x + i] = cosminChar[i];
+      }
+
+      // Draw active Dashas
+      for (let dasha of dashas) {
+        if (dasha.removed) continue;
+        for (let i = 0; i < dashaChar.length; i++) {
+          let drawX = dasha.x + i;
+          if (drawX >= 0 && drawX < width && dasha.y >= 0 && dasha.y < height) {
+            screen[dasha.y][drawX] = dashaChar[i];
+            styles[dasha.y][drawX] = 'hotpink';
+          }
+        }
+      }
+
+      // Draw floating red hearts
+      for (let heart of floatingHearts) {
+        for (let i = 0; i < dashaHitChar.length; i++) {
+          let drawX = heart.x + i;
+          if (drawX >= 0 && drawX < width && heart.y >= 0 && heart.y < height) {
+            screen[heart.y][drawX] = dashaHitChar[i];
+            styles[heart.y][drawX] = 'red';
+          }
+        }
+      }
+
+      // Render with color
+      let output = '';
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          const char = screen[y][x];
+          const color = styles[y][x];
+          if (color === 'red') output += `<span class="red">${char}</span>`;
+          else if (color === 'hotpink') output += `<span class="pink">${char}</span>`;
+          else output += char;
+        }
+        output += '\n';
+      }
+
+      gameDiv.innerHTML = output;
+    }
+
+    function update() {
+      for (let dasha of dashas) {
+        if (!dasha.hit) dasha.x -= 1;
+
+        if (!dasha.hit &&
+            dasha.y === cosmin.y &&
+            dasha.x <= cosmin.x + cosminChar.length - 1 &&
+            dasha.x + dashaChar.length - 1 >= cosmin.x) {
+          dasha.hit = true;
+          dasha.removed = true; // Remove visual from field
+          floatingHearts.push({ x: dasha.x, y: dasha.y, lifetime: 10 });
+          score++;
+          hud.textContent = `Cosmin Score on Dasha: ${score}`;
+        }
+      }
+
+      for (let heart of floatingHearts) {
+        heart.y -= 1;
+        heart.lifetime -= 1;
+      }
+
+      floatingHearts = floatingHearts.filter(h => h.y >= 0 && h.lifetime > 0);
+      dashas = dashas.filter(d => d.x + dashaChar.length > 0 || !d.removed);
+
+      if (Math.random() < 0.15) spawnDasha();
+    }
+
+    function gameLoop() {
+      update();
+      render();
+    }
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowUp' && cosmin.y > 0) cosmin.y--;
+      if (e.key === 'ArrowDown' && cosmin.y < height - 1) cosmin.y++;
+    });
+
+    document.addEventListener('click', handleClickOrTap);
+    document.addEventListener('touchstart', handleClickOrTap);
+
+    function handleClickOrTap(e) {
+      const rect = gameDiv.getBoundingClientRect();
+      const y = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
+      const lineHeightPx = 20 * 1.2;
+      const clickedRow = Math.floor(y / lineHeightPx);
+
+      if (clickedRow < cosmin.y && cosmin.y > 0) cosmin.y--;
+      else if (clickedRow > cosmin.y && cosmin.y < height - 1) cosmin.y++;
+    }
+
+    setInterval(gameLoop, 120);
+  </script>
+</body>
+</html>
