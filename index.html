@@ -1,223 +1,214 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Cosmin vs Dasha</title>
   <style>
     html, body {
       margin: 0;
       padding: 0;
-      overflow: hidden;
       background: black;
       font-family: monospace;
+      font-size: 20px;
+      overflow: hidden;
+      touch-action: none;
     }
-
     #hud {
       position: fixed;
       top: 0;
-      left: 0;
-      width: 100%;
+      left: 50%;
+      transform: translateX(-50%);
       background: #111;
       color: white;
-      padding: 10px;
-      font-size: 20px;
-      border-bottom: 2px solid lime;
+      padding: 10px 20px;
+      font-size: 22px;
+      border: 2px solid lime;
+      border-radius: 10px;
       z-index: 2;
-      text-align: center;
     }
-
-    #gameCanvas {
-      display: block;
-      background: black;
-    }
-
-    #loading {
+    #loading-bar {
       position: fixed;
-      width: 100%;
-      height: 100%;
-      background: #000;
-      color: lime;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      z-index: 3;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 300px;
+      height: 30px;
+      background: #333;
+      border: 2px solid lime;
+      border-radius: 5px;
+      overflow: hidden;
+      z-index: 10;
     }
-
-    #progressBar {
-      width: 80%;
-      height: 20px;
-      background: #222;
-      border: 1px solid lime;
-      margin-top: 10px;
-    }
-
-    #progressFill {
+    #loading-fill {
+      width: 0%;
       height: 100%;
       background: lime;
-      width: 0%;
+      transition: width 0.3s;
     }
+    #game {
+      white-space: pre;
+      line-height: 1.2;
+      color: lime;
+      padding-top: 60px;
+    }
+    .red { color: red; }
+    .pink { color: hotpink; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
+  <div id="hud">Cosmin Score on Dasha: 0</div>
+  <div id="loading-bar"><div id="loading-fill"></div></div>
+  <div id="game" class="hidden"></div>
 
-<div id="hud">Cosmin Score on Dasha: 0</div>
-<canvas id="gameCanvas" width="900" height="400"></canvas>
+  <script>
+    const width = 60;
+    const height = 20;
+    const cosminChar = '==3';
+    const dashaChar = "(')";
+    const dashaHitChar = '(♥)';
+    const gameDiv = document.getElementById('game');
+    const hud = document.getElementById('hud');
+    const loadingBar = document.getElementById('loading-bar');
+    const loadingFill = document.getElementById('loading-fill');
 
-<div id="loading">
-  <div>Loading...</div>
-  <div id="progressBar"><div id="progressFill"></div></div>
-</div>
+    let score = 0;
+    let cosmin = { x: 2, y: Math.floor(height / 2) };
+    let dashas = [];
+    let floatingHearts = [];
+    let dragging = false;
+    let ready = false;
 
-<script>
-  const canvas = document.getElementById('gameCanvas');
-  const ctx = canvas.getContext('2d');
-  const hud = document.getElementById('hud');
-  const loadingScreen = document.getElementById('loading');
-  const progressFill = document.getElementById('progressFill');
-
-  let gameStarted = false;
-  let score = 0;
-
-  let cosmin = {
-    x: 50,
-    y: canvas.height / 2,
-    width: 60,
-    height: 20,
-    dragging: false
-  };
-
-  let dashas = [];
-  let particles = [];
-
-  function drawCosmin() {
-    ctx.fillStyle = 'lime';
-    ctx.fillRect(cosmin.x, cosmin.y - cosmin.height / 2, cosmin.width, cosmin.height);
-  }
-
-  function drawDasha(d) {
-    ctx.fillStyle = d.hit ? 'hotpink' : 'deeppink';
-    ctx.fillRect(d.x, d.y - 10, 30, 20);
-  }
-
-  function drawParticles() {
-    for (let p of particles) {
-      ctx.fillStyle = 'red';
-      ctx.fillText('♥', p.x, p.y);
+    function simulateLoading(callback) {
+      let progress = 0;
+      let interval = setInterval(() => {
+        progress += 10;
+        loadingFill.style.width = progress + "%";
+        if (progress >= 100) {
+          clearInterval(interval);
+          setTimeout(() => {
+            loadingBar.style.display = 'none';
+            startGame(callback);
+          }, 400);
+        }
+      }, 200);
     }
-  }
 
-  function updateParticles() {
-    for (let p of particles) {
-      p.x += (Math.random() - 0.5) * 4;
-      p.y -= Math.random() * 2;
-      p.life -= 1;
-    }
-    particles = particles.filter(p => p.life > 0);
-  }
-
-  function spawnDasha() {
-    dashas.push({
-      x: canvas.width + 30,
-      y: Math.random() * (canvas.height - 40) + 20,
-      hit: false
-    });
-  }
-
-  function updateGame() {
-    for (let d of dashas) {
-      if (!d.hit) {
-        d.x -= 6;
-        if (d.x < cosmin.x + cosmin.width &&
-            d.x + 30 > cosmin.x &&
-            d.y > cosmin.y - cosmin.height / 2 &&
-            d.y < cosmin.y + cosmin.height / 2) {
-          d.hit = true;
-          score++;
+    function startGame(callback) {
+      let counter = 3;
+      const countdown = setInterval(() => {
+        hud.textContent = counter === 0 ? 'Go!' : `Starting in... ${counter}`;
+        counter--;
+        if (counter < -1) {
+          clearInterval(countdown);
           hud.textContent = `Cosmin Score on Dasha: ${score}`;
-          for (let i = 0; i < 10; i++) {
-            particles.push({
-              x: d.x,
-              y: d.y,
-              life: 30
-            });
+          gameDiv.classList.remove("hidden");
+          ready = true;
+        }
+      }, 800);
+    }
+
+    function spawnDasha() {
+      dashas.push({
+        x: width - 1,
+        y: Math.floor(Math.random() * (height - 1)) + 1,
+        hit: false,
+        removed: false
+      });
+    }
+
+    function render() {
+      let screen = Array.from({ length: height }, () => Array(width).fill(' '));
+      let styles = Array.from({ length: height }, () => Array(width).fill('lime'));
+
+      for (let i = 0; i < cosminChar.length; i++) {
+        if (cosmin.x + i < width) screen[cosmin.y][cosmin.x + i] = cosminChar[i];
+      }
+
+      for (let d of dashas) {
+        if (d.removed) continue;
+        for (let i = 0; i < dashaChar.length; i++) {
+          let drawX = d.x + i;
+          if (drawX >= 0 && drawX < width) {
+            screen[d.y][drawX] = dashaChar[i];
+            styles[d.y][drawX] = 'hotpink';
           }
         }
-      } else {
-        d.x -= (d.x - 10) * 0.05;
-        d.y -= (d.y - 10) * 0.05;
-        if (Math.abs(d.x - 10) < 2 && Math.abs(d.y - 10) < 2) {
-          dashas.splice(dashas.indexOf(d), 1);
+      }
+
+      for (let h of floatingHearts) {
+        for (let i = 0; i < dashaHitChar.length; i++) {
+          let drawX = h.x + i;
+          if (drawX >= 0 && drawX < width) {
+            screen[h.y][drawX] = dashaHitChar[i];
+            styles[h.y][drawX] = 'red';
+          }
         }
       }
+
+      let output = '';
+      for (let y = 0; y < height; y++) {
+        for (let x = 0; x < width; x++) {
+          let ch = screen[y][x];
+          let color = styles[y][x];
+          if (color === 'red') output += `<span class="red">${ch}</span>`;
+          else if (color === 'hotpink') output += `<span class="pink">${ch}</span>`;
+          else output += ch;
+        }
+        output += '\n';
+      }
+      gameDiv.innerHTML = output;
     }
-    dashas = dashas.filter(d => d.x > -40 || d.hit);
-  }
 
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    drawCosmin();
-    for (let d of dashas) drawDasha(d);
-    drawParticles();
-  }
+    function update() {
+      if (!ready) return;
 
-  function gameLoop() {
-    if (!gameStarted) return;
-    updateGame();
-    updateParticles();
-    draw();
-    requestAnimationFrame(gameLoop);
-  }
+      for (let d of dashas) {
+        if (!d.hit) d.x -= 2;
 
-  function setupControls() {
-    canvas.addEventListener('touchstart', e => {
-      e.preventDefault();
-      cosmin.dragging = true;
-    });
+        if (!d.hit && d.y === cosmin.y &&
+            d.x <= cosmin.x + cosminChar.length - 1 &&
+            d.x + dashaChar.length - 1 >= cosmin.x) {
+          d.hit = true;
+          d.removed = true;
+          floatingHearts.push({ x: d.x, y: d.y, lifetime: 10 });
+          score++;
+          hud.textContent = `Cosmin Score on Dasha: ${score}`;
+        }
+      }
 
-    canvas.addEventListener('touchmove', e => {
-      if (cosmin.dragging) {
-        let touch = e.touches[0];
-        const rect = canvas.getBoundingClientRect();
-        let y = touch.clientY - rect.top;
-        cosmin.y = Math.max(cosmin.height / 2, Math.min(canvas.height - cosmin.height / 2, y));
+      for (let h of floatingHearts) {
+        h.y -= 1;
+        h.lifetime -= 1;
+      }
+
+      floatingHearts = floatingHearts.filter(h => h.y >= 0 && h.lifetime > 0);
+      dashas = dashas.filter(d => d.x + dashaChar.length > 0 || !d.removed);
+
+      if (Math.random() < 0.2) spawnDasha();
+    }
+
+    document.addEventListener('touchstart', e => e.preventDefault(), { passive: false });
+    document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+
+    document.addEventListener('touchstart', () => dragging = true);
+    document.addEventListener('touchend', () => dragging = false);
+    document.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      const rect = gameDiv.getBoundingClientRect();
+      const y = e.touches[0].clientY - rect.top;
+      const row = Math.floor(y / (20 * 1.2));
+      if (row >= 0 && row < height) {
+        cosmin.y = row;
       }
     });
 
-    canvas.addEventListener('touchend', () => cosmin.dragging = false);
-  }
+    setInterval(() => {
+      update();
+      render();
+    }, 100);
 
-  function fakeLoading() {
-    let progress = 0;
-    const interval = setInterval(() => {
-      progress += 1;
-      progressFill.style.width = `${progress}%`;
-      if (progress >= 100) {
-        clearInterval(interval);
-        startGame();
-      }
-    }, 20);
-  }
-
-  function startGame() {
-    loadingScreen.style.display = 'none';
-    setTimeout(() => {
-      hud.textContent = "Ready...";
-      setTimeout(() => {
-        hud.textContent = "Steady...";
-        setTimeout(() => {
-          hud.textContent = "Cosmin Score on Dasha: 0";
-          gameStarted = true;
-          setInterval(spawnDasha, 800);
-          requestAnimationFrame(gameLoop);
-        }, 1000);
-      }, 1000);
-    }, 500);
-  }
-
-  setupControls();
-  fakeLoading();
-</script>
-
+    simulateLoading();
+  </script>
 </body>
 </html>
